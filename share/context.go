@@ -19,6 +19,10 @@ type Context struct {
 }
 
 func NewContext(ctx context.Context) *Context {
+	if sctx, ok := ctx.(*Context); ok {
+		return sctx
+	}
+
 	return &Context{
 		Context: ctx,
 		tags:    make(map[interface{}]interface{}),
