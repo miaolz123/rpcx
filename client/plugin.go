@@ -73,6 +73,19 @@ func (p *pluginContainer) DoPostCall(ctx context.Context, servicePath, serviceMe
 	return nil
 }
 
+// DoPreSendRaw executes before sendRaw
+func (p *pluginContainer) DoPreSendRaw(ctx context.Context, req *protocol.Message) error {
+	for i := range p.plugins {
+		if plugin, ok := p.plugins[i].(PreSendRawPlugin); ok {
+			err := plugin.PreSendRaw(ctx, req)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // DoConnCreated is called in case of client connection created.
 func (p *pluginContainer) DoConnCreated(conn net.Conn) (net.Conn, error) {
 	var err error
@@ -166,6 +179,10 @@ type (
 		PostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error
 	}
 
+	PreSendRawPlugin interface {
+		PreSendRaw(ctx context.Context, req *protocol.Message) error
+	}
+
 	// ConnCreatedPlugin is invoked when the client connection has created.
 	ConnCreatedPlugin interface {
 		ConnCreated(net.Conn) (net.Conn, error)
@@ -209,6 +226,8 @@ type (
 
 		DoPreCall(ctx context.Context, servicePath, serviceMethod string, args interface{}) error
 		DoPostCall(ctx context.Context, servicePath, serviceMethod string, args interface{}, reply interface{}, err error) error
+
+		DoPreSendRaw(ctx context.Context, req *protocol.Message) error
 
 		DoClientBeforeEncode(*protocol.Message) error
 		DoClientAfterDecode(*protocol.Message) error

@@ -599,7 +599,7 @@ func (c *xClient) SendRaw(ctx context.Context, r *protocol.Message) (map[string]
 		for retries >= 0 {
 			retries--
 			if client != nil {
-				m, payload, err := client.SendRaw(ctx, r)
+				m, payload, err := c.wrapSendRaw(ctx, client, r)
 				if err == nil {
 					return m, payload, nil
 				}
@@ -623,7 +623,7 @@ func (c *xClient) SendRaw(ctx context.Context, r *protocol.Message) (map[string]
 		for retries >= 0 {
 			retries--
 			if client != nil {
-				m, payload, err := client.SendRaw(ctx, r)
+				m, payload, err := c.wrapSendRaw(ctx, client, r)
 				if err == nil {
 					return m, payload, nil
 				}
@@ -645,7 +645,7 @@ func (c *xClient) SendRaw(ctx context.Context, r *protocol.Message) (map[string]
 		return nil, nil, err
 
 	default: //Failfast
-		m, payload, err := client.SendRaw(ctx, r)
+		m, payload, err := c.wrapSendRaw(ctx, client, r)
 
 		if err != nil {
 			if uncoverError(err) {
@@ -656,17 +656,33 @@ func (c *xClient) SendRaw(ctx context.Context, r *protocol.Message) (map[string]
 		return m, payload, nil
 	}
 }
+
 func (c *xClient) wrapCall(ctx context.Context, client RPCClient, serviceMethod string, args interface{}, reply interface{}) error {
 	if client == nil {
 		return ErrServerUnavailable
 	}
 
 	ctx = share.NewContext(ctx)
-	c.Plugins.DoPreCall(ctx, c.servicePath, serviceMethod, args)
+	if err := c.Plugins.DoPreCall(ctx, c.servicePath, serviceMethod, args); err != nil {
+		return err
+	}
+
 	err := client.Call(ctx, c.servicePath, serviceMethod, args, reply)
 	c.Plugins.DoPostCall(ctx, c.servicePath, serviceMethod, args, reply, err)
-
 	return err
+}
+
+func (c *xClient) wrapSendRaw(ctx context.Context, client RPCClient, req *protocol.Message) (map[string]string, []byte, error) {
+	if client == nil {
+		return nil, nil, ErrServerUnavailable
+	}
+
+	ctx = share.NewContext(ctx)
+	if err := c.Plugins.DoPreSendRaw(ctx, req); err != nil {
+		return nil, nil, ServiceError(err.Error())
+	}
+
+	return client.SendRaw(ctx, req)
 }
 
 // Broadcast sends requests to all servers and Success only when all servers return OK.
